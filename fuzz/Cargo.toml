@@ -1,0 +1,38 @@
+# Fuzz targets (cargo-fuzz, nightly). Development only: not part of the
+# published crate.
+[package]
+name = "gatekeeper-io-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+gatekeeper-io = { path = ".." }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "headers"
+path = "fuzz_targets/headers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "payload"
+path = "fuzz_targets/payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "login_csrf"
+path = "fuzz_targets/login_csrf.rs"
+test = false
+doc = false
+bench = false
