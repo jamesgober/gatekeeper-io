@@ -1,0 +1,95 @@
+# =============================================================================
+#  R E P S   ·   gatekeeper-io
+# =============================================================================
+[package]
+name    = "gatekeeper-io"
+version = "0.1.0"
+
+# Minimum Supported Rust Version (MSRV)
+rust-version = "1.85"
+edition = "2024"
+
+# License
+license = "Apache-2.0 OR MIT"
+
+# Readme
+readme = "README.md"
+
+# Description
+description = "The gates for Rust services in one package: authentication for every request, authorization at the router, sign-in and sign-out with CSRF, standing changes, audit, and keys from a vault. Stage types make skipping a gate a compile error."
+
+# Keywords (5 max)
+keywords = ["authentication", "authorization", "session", "csrf", "security"]
+
+# Categories
+categories = ["authentication", "web-programming"]
+
+# Links
+homepage      = "https://github.com/jamesgober/gatekeeper-io"
+repository    = "https://github.com/jamesgober/gatekeeper-io"
+documentation = "https://docs.rs/gatekeeper-io"
+
+# Authors
+authors = ["James Gober <me@jamesgober.com>"]
+
+# Development-only packages and tool configuration are never published.
+exclude = ["/fuzz", "/.cargo"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "gatekeeper_io"
+path = "src/lib.rs"
+
+
+# FEATURE FLAGS
+# #################################
+[features]
+default = []
+# Windows builds of aws-lc-sys without a NASM install.
+prebuilt-nasm = ["auth-gate/prebuilt-nasm"]
+# `web_net::Gate` and `web_net::Identity` for the Gatekeeper and its stages.
+web-net = ["dep:web-net"]
+
+
+# DEPENDENCIES
+# #################################
+[dependencies]
+# The two gates (first party). Published versions only: never a path
+# dependency in this file.
+auth-gate = "0.3"
+access-gate = "0.3"
+# Signed, session-bound CSRF tokens and the request origin policy.
+csrf-sec = "0.9.3"
+# Cookie parsing (duplicate-safe) and Set-Cookie building.
+cookie-net = "0.7.1"
+# The master secret, page-locked and zeroed on drop.
+key-vault = "1.1"
+# Tamper-evident audit chain (in-memory sink; callers bring file sinks).
+audit-trail = { version = "1.2", default-features = false, features = ["alloc"] }
+# HKDF for the audit key and keyed BLAKE3 for the chain (audited crypto).
+crypt-io = { version = "1.5", default-features = false, features = ["std", "mac-blake3", "kdf-hkdf"] }
+# OS CSPRNG for pre-session cookies (first party, zero dependencies).
+mod-rand = { version = "1", default-features = false, features = ["tier3"] }
+# The web framework's gate traits (optional).
+web-net = { version = "0.3", optional = true }
+
+
+# DEV DEPENDENCIES
+# #################################
+[dev-dependencies]
+# The audit-trail verifier and key-vault in tests.
+audit-trail = { version = "1.2", default-features = false, features = ["alloc"] }
+# Benchmarks only; never linked into the library.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+# Property tests only; never linked into the library.
+proptest = { version = "1.6", default-features = false, features = ["std"] }
+
+
+# BENCHMARKS
+# #################################
+[[bench]]
+name = "gates"
+harness = false
