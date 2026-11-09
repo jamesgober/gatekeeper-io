@@ -3,7 +3,7 @@
 # =============================================================================
 [package]
 name    = "gatekeeper-io"
-version = "0.3.0"
+version = "0.4.0"
 
 # Minimum Supported Rust Version (MSRV)
 rust-version = "1.85"
@@ -74,7 +74,7 @@ crypt-io = { version = "1.5", default-features = false, features = ["std", "mac-
 # OS CSPRNG for pre-session cookies (first party, zero dependencies).
 mod-rand = { version = "1", default-features = false, features = ["tier3"] }
 # The web framework's gate traits (optional).
-web-net = { version = "0.3", optional = true }
+web-net = { version = "0.7", optional = true }
 
 
 # DEV DEPENDENCIES

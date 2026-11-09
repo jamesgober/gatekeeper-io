@@ -21,3 +21,4 @@ gatekeeper-io is the package that joins auth-gate and access-gate: stage types, 
 | D-009 | 2026-11-08 | The session cookie name must carry the `__Host-` prefix, checked at build | a sibling subdomain cannot plant a session |
 | D-010 | 2026-11-08 | web-net's `Gate` and `Identity` are implemented here behind the `web-net` feature, through a non-consuming `check` | web-net keeps its own proof (its handler context) and takes the identity by reference; the router needs no clone |
 | D-011 | 2026-11-08 | Stage values are `Send + Sync + Clone + 'static` and borrow nothing from the request | the request slot carries them from the core to the router, across threads |
+| D-012 | 2026-11-09 | Follow web-net 0.7: the cleared session cookie travels through `Identity::set_cookie` and `Denial::with_cookie`; a gateway in front writes it itself for the services it fronts | one writer per path, exactly once per reply |

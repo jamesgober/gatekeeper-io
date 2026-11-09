@@ -27,11 +27,27 @@ impl web_net::Identity for Identified {
     fn csrf_binding(&self) -> Option<&[u8]> {
         Identified::csrf_binding(self)
     }
+
+    /// The `Set-Cookie` that clears a dead session cookie, when the gate
+    /// produced one. web-net writes it on the reply.
+    fn set_cookie(&self) -> Option<&str> {
+        Identified::set_cookie(self)
+    }
 }
 
-/// The web-net denial for a gate refusal. The code is for logs and events.
+/// The web-net denial for a gate refusal, carrying the refusal's
+/// `Set-Cookie` (a cleared session cookie) when it has one. The code is for
+/// logs and events.
 #[must_use]
 pub fn denial(refusal: &Refusal) -> Denial {
+    let d = denial_kind(refusal);
+    match refusal.set_cookie() {
+        Some(c) => d.with_cookie(c),
+        None => d,
+    }
+}
+
+fn denial_kind(refusal: &Refusal) -> Denial {
     match refusal.kind() {
         RefusalKind::NeedsSignIn => Denial::sign_in("gate.sign_in"),
         RefusalKind::Forbidden(AccessDenial::StaleFactor) => Denial::sign_in("gate.step_up"),
@@ -75,5 +91,42 @@ impl web_net::Gate for Gatekeeper {
 
     fn authorize(&self, who: &Identified, rule: &Rule, _req: &Request<'_>) -> Result<(), Denial> {
         self.check(who, rule, None).map_err(|r| denial(&r))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use web_net::DenialKind;
+
+    use super::*;
+
+    #[test]
+    fn refusals_map_and_keep_their_cookie() {
+        let banned = Refusal::new(RefusalKind::Banned { until: None })
+            .with_cookie(Some("__Host-sid=; Max-Age=0".into()));
+        let d = denial(&banned);
+        assert_eq!(d.kind(), DenialKind::Forbidden);
+        assert_eq!(d.code(), "gate.banned");
+        assert_eq!(d.cookie(), Some("__Host-sid=; Max-Age=0"));
+
+        let sign_in = denial(&Refusal::new(RefusalKind::NeedsSignIn));
+        assert_eq!(sign_in.kind(), DenialKind::SignIn);
+        assert_eq!(sign_in.cookie(), None);
+        let step_up = denial(&Refusal::new(RefusalKind::Forbidden(
+            AccessDenial::StaleFactor,
+        )));
+        assert_eq!(step_up.code(), "gate.step_up");
+    }
+
+    #[test]
+    fn identity_hands_web_net_the_cookie() {
+        let dead = Identified::guest(Some("__Host-sid=; Max-Age=0".into()));
+        assert!(web_net::Identity::is_guest(&dead));
+        assert_eq!(dead.set_cookie(), Some("__Host-sid=; Max-Age=0"));
+        assert_eq!(
+            web_net::Identity::set_cookie(&dead),
+            Some("__Host-sid=; Max-Age=0")
+        );
+        assert_eq!(Identified::guest(None).csrf_binding(), None);
     }
 }

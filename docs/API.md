@@ -42,8 +42,8 @@
 
 The crate also re-exports the access-gate and auth-gate types a service needs (`Schema`, `Rule`, `Resource`, `Standing`, `GateKeys`, the stores, signals).
 
-## Feature `web-net`
+## Feature `web-net` (web-net 0.7)
 
-`Gatekeeper` implements `web_net::Gate` (`Identity = Identified`, `Rule = access_gate::Rule`) and `Identified` implements `web_net::Identity` (`csrf_binding`: the session id, or a guest's pre-session value). `web::visit(&Request)` builds the gates' `Visit`; `web::denial(&Refusal)` maps a refusal to a web-net `Denial` (`gate.sign_in`, `gate.step_up`, `gate.guest_only`, `gate.banned`, `gate.csrf`, `gate.forbidden`, `gate.unavailable`).
+`Gatekeeper` implements `web_net::Gate` (`Identity = Identified`, `Rule = access_gate::Rule`) and `Identified` implements `web_net::Identity` (`csrf_binding`: the session id, or a guest's pre-session value; `set_cookie`: the cleared session cookie, when there is one). `web::visit(&Request)` builds the gates' `Visit`; `web::denial(&Refusal)` maps a refusal to a web-net `Denial`, carrying the refusal's cookie (`gate.sign_in`, `gate.step_up`, `gate.guest_only`, `gate.banned`, `gate.csrf`, `gate.forbidden`, `gate.unavailable`).
 
 Also: `Gatekeeper::check(&Identified, &Rule, Option<&Resource>) -> Result<(), Refusal>` decides without consuming the stage; `Identified::csrf_binding`; `Visit::duplicate_cookie_fields()` (more than one `Cookie` field: every cookie read is refused).

@@ -13,6 +13,26 @@
 
 ---
 
+## [0.4.0] - 2026-11-09
+
+The `web-net` feature moves to web-net 0.7.
+
+### Changed
+
+- `web-net` now depends on web-net 0.7 (was 0.3). Breaking for users of the
+  feature: web-net's `Denial` is `Clone` only.
+- `web::denial` attaches the refusal's `Set-Cookie` (a cleared session
+  cookie) to the denial with `Denial::with_cookie`.
+
+### Added
+
+- `web_net::Identity::set_cookie` for `Identified`: web-net writes the
+  cleared session cookie on the reply.
+
+See [`docs/release/v0.4.0.md`](./docs/release/v0.4.0.md).
+
+---
+
 ## [0.3.0] - 2026-11-08
 
 Hardening: property tests for every invariant, fuzz targets for every parser, and benchmarks with measured numbers.
