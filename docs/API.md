@@ -34,7 +34,7 @@
 
 ## Results
 
-`Refusal` (`kind`, `status`: 401, 403, or 503; `set_cookie`), `RefusalKind`, `FormToken`, `Login`, `SignedIn` (`user`, `set_cookies`, `token`), `SecondFactor`, `LoginFailed`, `LoginFailure`, `SignedOut`.
+`Refusal` (`kind`, `status`: 401, 403, or 503; `set_cookie`, only on authentication refusals), `RefusalKind`, `FormToken`, `Login`, `SignedIn` (`user`, `set_cookies`, `token`), `SecondFactor`, `LoginFailed`, `LoginFailure`, `SignedOut`.
 
 ## Audit
 

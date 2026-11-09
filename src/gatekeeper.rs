@@ -495,6 +495,9 @@ impl Gatekeeper {
     /// The decision alone, without producing a stage: for frameworks that
     /// keep their own proof that the check ran (web-net's handler context).
     ///
+    /// An authorization refusal never carries a `Set-Cookie`: write the
+    /// identity's [`Identified::set_cookie`] once, from authentication.
+    ///
     /// # Errors
     ///
     /// As [`authorize`](Self::authorize).
@@ -514,7 +517,10 @@ impl Gatekeeper {
                 session: stage.identity().session(),
                 at: self.clock.now(),
             });
-            Refusal::from_denial(d).with_cookie(stage.set_cookie.clone())
+            // No cookie here: a cleared session cookie belongs to the
+            // authentication step (`Identified::set_cookie`), which the
+            // caller writes once. Repeating it would send it twice.
+            Refusal::from_denial(d)
         })
     }
 

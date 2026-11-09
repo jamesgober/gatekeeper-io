@@ -678,6 +678,26 @@ fn csrf_binding_follows_the_visitor() {
     );
 }
 
+/// A forged cookie on a signed-in route: the clearing cookie comes from the
+/// identity once, never again on the authorization refusal.
+#[test]
+fn the_clearing_cookie_is_written_once() {
+    let s = site();
+    let forged = Browser {
+        jar: vec![format!("__Host-sid={}", "A".repeat(67))],
+    };
+    let id = identify(&s, &forged).unwrap();
+    assert!(
+        id.set_cookie().is_some(),
+        "authentication clears the dead cookie"
+    );
+    let err = s.gk.check(&id, &s.write, None).unwrap_err();
+    assert_eq!(err.status(), 401);
+    assert_eq!(err.set_cookie(), None, "not repeated by the check");
+    let err = s.gk.authorize(id, &s.write).unwrap_err();
+    assert_eq!(err.set_cookie(), None, "not repeated by authorize");
+}
+
 #[test]
 fn everyone_guest_stub() {
     let id = EveryoneGuest

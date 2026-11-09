@@ -13,6 +13,20 @@
 
 ---
 
+## [0.4.1] - 2026-11-09
+
+### Fixed
+
+- A request with a dead session cookie on a route that refused it got the
+  clearing `Set-Cookie` twice: once from the identity and again on the
+  authorization refusal. Authorization refusals (`check`, `authorize`,
+  `authorize_on`) no longer carry a cookie; only authentication refusals
+  (a ban) do. Found in end-to-end testing.
+
+See [`docs/release/v0.4.1.md`](./docs/release/v0.4.1.md).
+
+---
+
 ## [0.4.0] - 2026-11-09
 
 The `web-net` feature moves to web-net 0.7.

@@ -129,7 +129,10 @@ impl Identified {
     }
 
     /// A `Set-Cookie` value the response must carry: the gate clears a
-    /// cookie whose token can never work again.
+    /// cookie whose token can never work again. Write it once per reply,
+    /// whatever authorization decides: authorization refusals do not repeat
+    /// it. Read it before passing the stage to a consuming
+    /// [`Gatekeeper::authorize`](crate::Gatekeeper::authorize).
     #[must_use]
     pub fn set_cookie(&self) -> Option<&str> {
         self.set_cookie.as_deref()

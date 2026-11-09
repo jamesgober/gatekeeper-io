@@ -28,7 +28,7 @@
         <strong>MSRV is 1.85+</strong> (Rust 2024 edition). <code>#![forbid(unsafe_code)]</code>.
     </p>
     <blockquote>
-        <strong>Status: <code>0.4.0</code>, pre-release.</strong> Built and tested locally; not yet published. It depends on auth-gate and access-gate, which publish first.
+        <strong>Status: <code>0.4.1</code>, pre-release.</strong> Built and tested locally; not yet published. It depends on auth-gate and access-gate, which publish first.
     </blockquote>
 </div>
 
@@ -87,7 +87,7 @@ let out = gk.logout(cleared, &visit, csrf)?;      // 303, with out.set_cookie()
 
 ## With web-net
 
-Enable the `web-net` feature (web-net 0.7) and the `Gatekeeper` is a `web_net::Gate`: routes declare `.allow(rule)` with an access-gate `Rule`, and web-net calls authentication once per request and authorization per route. A cleared session cookie rides on the reply: through `Identity::set_cookie` for a guest whose token died, and on the denial for a refusal.
+Enable the `web-net` feature (web-net 0.7) and the `Gatekeeper` is a `web_net::Gate`: routes declare `.allow(rule)` with an access-gate `Rule`, and web-net calls authentication once per request and authorization per route. A cleared session cookie rides on the reply exactly once: through `Identity::set_cookie` for a visitor whose token died, or on the denial when authentication itself refuses (a ban). Authorization denials never repeat it.
 
 ## Where the data comes from
 

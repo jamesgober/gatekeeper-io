@@ -119,6 +119,20 @@ mod tests {
     }
 
     #[test]
+    fn authorization_denials_carry_no_cookie() {
+        let schema = access_gate::Schema::builder("web").build().unwrap();
+        let gk = Gatekeeper::builder(schema, auth_gate::GateKeys::derive(&[4; 32]).unwrap())
+            .unwrap()
+            .build()
+            .unwrap();
+        let dead = Identified::guest(Some("__Host-sid=; Max-Age=0".into()));
+        let refusal = gk.check(&dead, &Rule::signed_in(), None).unwrap_err();
+        let d = denial(&refusal);
+        assert_eq!(d.kind(), DenialKind::SignIn);
+        assert_eq!(d.cookie(), None, "web-net writes Identity::set_cookie once");
+    }
+
+    #[test]
     fn identity_hands_web_net_the_cookie() {
         let dead = Identified::guest(Some("__Host-sid=; Max-Age=0".into()));
         assert!(web_net::Identity::is_guest(&dead));

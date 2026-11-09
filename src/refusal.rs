@@ -29,6 +29,11 @@ pub enum RefusalKind {
 /// A request stopped at a gate. Send the client only [`status`](Self::status)
 /// (and [`set_cookie`](Self::set_cookie) if present); the kind is for logs
 /// and audit.
+///
+/// Only authentication refusals (a ban) carry a cookie. An authorization
+/// refusal never does: the identity's own [`Identified::set_cookie`](crate::Identified::set_cookie)
+/// is the one place a cleared session cookie comes from after
+/// authentication passed, so it is written exactly once.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Refusal {
     kind: RefusalKind,
