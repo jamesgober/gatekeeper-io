@@ -24,6 +24,9 @@ pub enum RefusalKind {
     Csrf,
     /// The gate could not reach its stores; failing closed.
     Unavailable,
+    /// The stage was issued by another gatekeeper (another service in the
+    /// same process): never read in this schema.
+    ForeignStage,
 }
 
 /// A request stopped at a gate. Send the client only [`status`](Self::status)
@@ -103,6 +106,7 @@ impl fmt::Display for Refusal {
             RefusalKind::Forbidden(_) => "forbidden",
             RefusalKind::Csrf => "request forgery check failed",
             RefusalKind::Unavailable => "gate unavailable",
+            RefusalKind::ForeignStage => "issued by another gatekeeper",
         };
         f.write_str(text)
     }

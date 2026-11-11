@@ -16,8 +16,9 @@ use core::fmt;
 use access_gate::Subject;
 use auth_gate::{SessionId, UserId};
 
-/// Inspected by the door: parsed, within limits, customs passed. Built by
-/// the request pipeline in front of the gates.
+/// The first stage: the request pipeline in front of the gates marks a
+/// request it has parsed and inspected. Anyone can build one, so it asserts
+/// nothing by itself; it only fixes the order (authentication takes it).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub struct Inspected {
     _private: (),
@@ -91,8 +92,13 @@ pub struct Identified {
     pub(crate) identity: Identity,
     pub(crate) digest: Option<auth_gate::TokenDigest>,
     pub(crate) set_cookie: Option<String>,
-    pub(crate) pre: Option<String>,
+    pub(crate) pre: Option<[u8; PRE_LEN]>,
+    /// The gatekeeper that issued it (0: no gatekeeper, a starter stub).
+    pub(crate) issuer: u64,
 }
+
+/// The length of a pre-session cookie's value.
+pub(crate) const PRE_LEN: usize = 43;
 
 impl Identified {
     pub(crate) fn guest(set_cookie: Option<String>) -> Self {
@@ -101,6 +107,7 @@ impl Identified {
             digest: None,
             set_cookie,
             pre: None,
+            issuer: 0,
         }
     }
 
@@ -144,7 +151,7 @@ impl Identified {
     pub fn csrf_binding(&self) -> Option<&[u8]> {
         match &self.identity {
             Identity::Member { session, .. } => Some(session.as_bytes()),
-            Identity::Guest => self.pre.as_deref().map(str::as_bytes),
+            Identity::Guest => self.pre.as_ref().map(<[u8; PRE_LEN]>::as_slice),
         }
     }
 }
@@ -159,6 +166,12 @@ impl fmt::Debug for Identified {
 
 /// Authorized for the matched route (and resource). Only the gate builds
 /// one; handlers take it.
+///
+/// It proves that this gatekeeper cleared the request for *a* rule, not
+/// which one: a `Cleared` from a public rule satisfies any handler's
+/// signature. Keep each handler next to the rule its route declares (the
+/// router does), or check the rule inside the handler with
+/// [`Gatekeeper::check`](crate::Gatekeeper::check).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Cleared {
     pub(crate) inner: Identified,

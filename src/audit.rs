@@ -1,17 +1,20 @@
 //! Audit: sign-ins, sign-outs, bans, and standing changes, into an
 //! audit-trail hash chain.
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    collections::VecDeque,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use audit_trail::{
-    Action, Actor, Chain, Digest, Hasher, MemorySink, MonotonicClock, Outcome, OwnedRecord, Sink,
-    Target, Timestamp,
+    Action, Actor, Chain, Digest, Hasher, MonotonicClock, Outcome, OwnedRecord, Record, Sink,
+    SinkError, Target, Timestamp,
 };
 use auth_gate::{Clock, UserId};
-use crypt_io::mac::Blake3Mac;
+use crypt_io::{Zeroizing, mac::Blake3Mac};
 
 /// What happened, for the audit log.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -33,6 +36,18 @@ pub enum AuditAction {
     PasswordChanged,
     /// An account was created.
     AccountCreated,
+    /// A TOTP secret was enrolled (or a replacement started).
+    TotpEnrolled,
+    /// A TOTP secret was confirmed and is now the factor.
+    TotpConfirmed,
+    /// TOTP was removed.
+    TotpRemoved,
+    /// New recovery codes were issued (the old ones stop working).
+    RecoveryCodesIssued,
+    /// A passkey was registered.
+    PasskeyAdded,
+    /// A passkey was removed.
+    PasskeyRemoved,
 }
 
 impl AuditAction {
@@ -48,6 +63,12 @@ impl AuditAction {
             Self::RolesChanged => "auth.roles.changed",
             Self::PasswordChanged => "auth.password.changed",
             Self::AccountCreated => "auth.account.created",
+            Self::TotpEnrolled => "auth.factor.totp.enrolled",
+            Self::TotpConfirmed => "auth.factor.totp.confirmed",
+            Self::TotpRemoved => "auth.factor.totp.removed",
+            Self::RecoveryCodesIssued => "auth.factor.recovery.issued",
+            Self::PasskeyAdded => "auth.factor.passkey.added",
+            Self::PasskeyRemoved => "auth.factor.passkey.removed",
         }
     }
 }
@@ -91,7 +112,7 @@ pub trait AuditLog: Send + Sync {
 /// Keyed BLAKE3 (crypt-io) as the chain's hash, so a writer without the key
 /// cannot rebuild the chain after editing it.
 pub struct KeyedBlake3 {
-    key: [u8; 32],
+    key: Zeroizing<[u8; 32]>,
     mac: Blake3Mac,
 }
 
@@ -100,8 +121,8 @@ impl KeyedBlake3 {
     #[must_use]
     pub fn new(key: [u8; 32]) -> Self {
         Self {
-            key,
             mac: Blake3Mac::new(&key),
+            key: Zeroizing::new(key),
         }
     }
 }
@@ -164,17 +185,79 @@ impl<S: Sink + Send> ChainAudit<S> {
     }
 }
 
-impl ChainAudit<MemorySink> {
-    /// A chain kept in memory.
+/// The default number of records an in-memory audit chain keeps.
+pub const MEMORY_AUDIT_RECORDS: usize = 10_000;
+
+/// An audit-trail sink that keeps the last `cap` records in memory and
+/// counts what it dropped. The chain stays verifiable from the oldest kept
+/// record on (its `prev_hash` is the link). For tests and local
+/// development; a deployment writes to a file or a log service.
+#[derive(Debug)]
+pub struct RingSink {
+    cap: usize,
+    records: VecDeque<OwnedRecord>,
+    dropped: u64,
+}
+
+impl RingSink {
+    /// Keep at most `cap` records.
     #[must_use]
-    pub fn memory(key: [u8; 32], clock: Arc<dyn Clock>) -> Self {
-        Self::new(MemorySink::new(), key, clock)
+    pub fn new(cap: usize) -> Self {
+        Self {
+            cap: cap.max(1),
+            records: VecDeque::new(),
+            dropped: 0,
+        }
     }
 
-    /// The records so far.
+    /// The records kept, oldest first.
+    pub fn records(&self) -> impl Iterator<Item = &OwnedRecord> {
+        self.records.iter()
+    }
+
+    /// How many old records were dropped to stay within the bound.
+    #[must_use]
+    pub const fn dropped(&self) -> u64 {
+        self.dropped
+    }
+}
+
+impl Sink for RingSink {
+    fn write(&mut self, record: &Record<'_>) -> Result<(), SinkError> {
+        if self.records.len() == self.cap {
+            self.records.pop_front();
+            self.dropped += 1;
+        }
+        self.records.push_back(OwnedRecord::from_record(record));
+        Ok(())
+    }
+}
+
+impl ChainAudit<RingSink> {
+    /// A chain kept in memory, bounded to [`MEMORY_AUDIT_RECORDS`] (the
+    /// oldest go first).
+    #[must_use]
+    pub fn memory(key: [u8; 32], clock: Arc<dyn Clock>) -> Self {
+        Self::memory_with_capacity(key, clock, MEMORY_AUDIT_RECORDS)
+    }
+
+    /// A chain kept in memory, bounded to `cap` records.
+    #[must_use]
+    pub fn memory_with_capacity(key: [u8; 32], clock: Arc<dyn Clock>, cap: usize) -> Self {
+        Self::new(RingSink::new(cap), key, clock)
+    }
+
+    /// The records kept, oldest first.
     #[must_use]
     pub fn records(&self) -> Vec<OwnedRecord> {
-        self.with_sink(|s| s.records().to_vec()).unwrap_or_default()
+        self.with_sink(|s| s.records().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// How many old records were dropped to stay within the bound.
+    #[must_use]
+    pub fn dropped(&self) -> u64 {
+        self.with_sink(|s| s.dropped()).unwrap_or(0)
     }
 
     /// The action names so far, oldest first.

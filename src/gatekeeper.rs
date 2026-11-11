@@ -12,6 +12,7 @@ use auth_gate::{
     Signal, SignalKind, SignalSink, Standing, StoreError, SystemClock, UserId, Verified,
 };
 use cookie_net::SetCookie;
+use crypt_io::Zeroizing;
 use csrf_sec::{Binding, Csrf, OsPads, RequestFacts};
 
 use crate::{
@@ -252,8 +253,8 @@ impl SignedOut {
 pub struct GatekeeperBuilder {
     schema: Schema,
     auth: AuthGateBuilder,
-    csrf_key: [u8; 32],
-    audit_key: [u8; 32],
+    csrf_key: Zeroizing<[u8; 32]>,
+    audit_key: Zeroizing<[u8; 32]>,
     locator: Locator,
     origin: Option<String>,
     signals: Option<Arc<dyn SignalSink>>,
@@ -351,8 +352,12 @@ impl GatekeeperBuilder {
             .unwrap_or_else(|| Arc::new(MemorySignals::default()));
         let audit = self
             .audit
-            .unwrap_or_else(|| Arc::new(ChainAudit::memory(self.audit_key, clock.clone())));
-        let csrf = Csrf::new(self.csrf_key).map_err(|_| AuthError::Crypto)?;
+            .unwrap_or_else(|| Arc::new(ChainAudit::memory(*self.audit_key, clock.clone())));
+        let csrf = Csrf::new(*self.csrf_key).map_err(|_| AuthError::Crypto)?;
+        let mut id = [0u8; 8];
+        mod_rand::tier3::fill_bytes(&mut id).map_err(|_| AuthError::Random)?;
+        // Never 0: that marks stages no gatekeeper issued.
+        let id = u64::from_le_bytes(id) | 1;
         let auth = self
             .auth
             .clock(clock.clone())
@@ -360,6 +365,8 @@ impl GatekeeperBuilder {
             .build()?;
         Ok(Gatekeeper {
             auth,
+            id,
+            fingerprint: self.schema.fingerprint(),
             schema: Arc::new(self.schema),
             csrf,
             locator: self.locator,
@@ -380,6 +387,8 @@ impl GatekeeperBuilder {
 /// say where, key-vault supplies the master secret.
 pub struct Gatekeeper {
     auth: AuthGate,
+    id: u64,
+    fingerprint: u64,
     schema: Arc<Schema>,
     csrf: Csrf,
     locator: Locator,
@@ -399,13 +408,6 @@ impl fmt::Debug for Gatekeeper {
     }
 }
 
-fn derive_key(from: &[u8; 32], label: &str) -> Result<[u8; 32], AuthError> {
-    let mut out = [0u8; 32];
-    crypt_io::kdf::hkdf_sha256_into(from, Some(b"gatekeeper-io/v1"), label.as_bytes(), &mut out)
-        .map_err(|_| AuthError::Crypto)?;
-    Ok(out)
-}
-
 impl Gatekeeper {
     /// Start configuring a gatekeeper for the service `schema` describes,
     /// with keys derived from the master secret.
@@ -414,8 +416,8 @@ impl Gatekeeper {
     ///
     /// [`AuthError::Crypto`] if key derivation fails.
     pub fn builder(schema: Schema, keys: GateKeys) -> Result<GatekeeperBuilder, AuthError> {
-        let csrf_key = keys.csrf_key();
-        let audit_key = derive_key(&csrf_key, "audit chain")?;
+        let csrf_key = Zeroizing::new(keys.csrf_key());
+        let audit_key = keys.audit_key();
         Ok(GatekeeperBuilder {
             schema,
             auth: AuthGate::builder(keys),
@@ -431,7 +433,8 @@ impl Gatekeeper {
     }
 
     /// The authentication gate, for calls this type does not wrap
-    /// (factor enrolment, passkey registration, devices).
+    /// (challenges, devices). Factor and session changes made through it
+    /// are not audited: use this type's methods for those.
     #[must_use]
     pub fn auth(&self) -> &AuthGate {
         &self.auth
@@ -507,7 +510,32 @@ impl Gatekeeper {
         rule: &Rule,
         resource: Option<&Resource>,
     ) -> Result<(), Refusal> {
-        let now = self.clock.now().as_millis();
+        if stage.issuer != self.id && !stage.is_guest() {
+            self.signals.signal(&Signal {
+                kind: SignalKind::AccessDenied,
+                confidence: 90,
+                source: None,
+                user: stage.user(),
+                session: stage.identity().session(),
+                at: self.clock.now(),
+            });
+            return Err(Refusal::new(RefusalKind::ForeignStage));
+        }
+        // The clock only when the decision depends on it.
+        let timed = rule
+            .conditions()
+            .any(|c| matches!(c, access_gate::Condition::FreshFactor(_)))
+            || stage.subject().is_some_and(|s| {
+                matches!(
+                    s.status(),
+                    access_gate::Status::Suspended { until: Some(_) }
+                )
+            });
+        let now = if timed {
+            self.clock.now().as_millis()
+        } else {
+            0
+        };
         authorize_with(self.schema.guests(), stage.subject(), rule, resource, now).map_err(|d| {
             self.signals.signal(&Signal {
                 kind: SignalKind::AccessDenied,
@@ -743,7 +771,11 @@ impl Gatekeeper {
                 self.audit.record(&AuditEvent::new(
                     None,
                     AuditAction::SignInFailed,
-                    format!("reason={:?}", f.reason()),
+                    format!(
+                        "reason={:?} source={}",
+                        f.reason(),
+                        source_prefix(visit.peer)
+                    ),
                     Outcome::Denied,
                 ));
                 let reason = if f.reason() == FailureReason::Unavailable {
@@ -773,7 +805,7 @@ impl Gatekeeper {
         if let Some(src) = &self.attributes {
             src.load(user, &self.schema, &mut attrs)?;
         }
-        let payload = subject::encode(perms, account.tenant, &attrs)?;
+        let payload = subject::encode(self.fingerprint, perms, account.tenant, &attrs)?;
         let issued = self.auth.issue(v, payload, &self.presented(visit))?;
         let mut cookies = Vec::with_capacity(2);
         if let Some(name) = self.locator.cookie_name() {
@@ -912,6 +944,128 @@ impl Gatekeeper {
         Ok(())
     }
 
+    fn audited<T>(
+        &self,
+        user: UserId,
+        by: Actor,
+        action: AuditAction,
+        detail: &str,
+        res: Result<T, AuthError>,
+    ) -> Result<T, AuthError> {
+        let actor = match by {
+            Actor::Admin(a) => Some(a),
+            Actor::System => Some(user),
+        };
+        self.audit.record(&AuditEvent::new(
+            actor,
+            action,
+            format!("user={user}{detail}"),
+            if res.is_ok() {
+                Outcome::Success
+            } else {
+                Outcome::Error
+            },
+        ));
+        res
+    }
+
+    /// Start TOTP enrolment (audited). `by` is the account itself
+    /// ([`Actor::System`]) or an administrator.
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::enroll_totp`].
+    pub fn enroll_totp(&self, user: UserId, by: Actor) -> Result<auth_gate::TotpSecret, AuthError> {
+        let res = self.auth.enroll_totp(user);
+        self.audited(user, by, AuditAction::TotpEnrolled, "", res)
+    }
+
+    /// Confirm TOTP enrolment with a first code (audited when it confirms).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::confirm_totp`].
+    pub fn confirm_totp(&self, user: UserId, code: &str, by: Actor) -> Result<bool, AuthError> {
+        let res = self.auth.confirm_totp(user, code);
+        if matches!(res, Ok(false)) {
+            return res;
+        }
+        self.audited(user, by, AuditAction::TotpConfirmed, "", res)
+    }
+
+    /// Remove TOTP (audited).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::remove_totp`].
+    pub fn remove_totp(&self, user: UserId, by: Actor) -> Result<(), AuthError> {
+        let res = self.auth.remove_totp(user);
+        self.audited(user, by, AuditAction::TotpRemoved, "", res)
+    }
+
+    /// Issue new recovery codes (audited; the codes are never logged).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::new_recovery_codes`].
+    pub fn new_recovery_codes(
+        &self,
+        user: UserId,
+        by: Actor,
+    ) -> Result<Vec<crypt_io::Zeroizing<String>>, AuthError> {
+        let res = self.auth.new_recovery_codes(user);
+        self.audited(user, by, AuditAction::RecoveryCodesIssued, "", res)
+    }
+
+    /// Register a passkey (audited).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::register_passkey`], as [`AuthError::InvalidInput`].
+    pub fn register_passkey(
+        &self,
+        user: UserId,
+        rp: &RelyingParty,
+        client_data_json: &[u8],
+        authenticator_data: &[u8],
+        by: Actor,
+    ) -> Result<(), AuthError> {
+        let res = self
+            .auth
+            .register_passkey(user, rp, client_data_json, authenticator_data)
+            .map_err(|_| AuthError::InvalidInput("passkey registration"));
+        self.audited(user, by, AuditAction::PasskeyAdded, "", res)
+    }
+
+    /// Remove a passkey (audited).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::remove_passkey`].
+    pub fn remove_passkey(
+        &self,
+        user: UserId,
+        credential: &[u8],
+        by: Actor,
+    ) -> Result<bool, AuthError> {
+        let res = self.auth.remove_passkey(user, credential);
+        self.audited(user, by, AuditAction::PasskeyRemoved, "", res)
+    }
+
+    /// End every session of an account (audited).
+    ///
+    /// # Errors
+    ///
+    /// As [`AuthGate::sign_out_everywhere`].
+    pub fn sign_out_everywhere(&self, user: UserId, by: Actor) -> Result<u32, AuthError> {
+        let res = self.auth.sign_out_everywhere(user);
+        let detail = match &res {
+            Ok(n) => format!(" ended={n}"),
+            Err(_) => String::new(),
+        };
+        self.audited(user, by, AuditAction::SignOutEverywhere, &detail, res)
+    }
+
     /// Change a password; every session of the account ends.
     ///
     /// # Errors
@@ -939,14 +1093,13 @@ impl Authenticator for Gatekeeper {
                 } else {
                     None
                 });
+                id.issuer = self.id;
                 if let crate::visit::Located::Found(pre) = visit.cookie(PRE_SESSION_COOKIE) {
-                    if pre.len() == 43 {
-                        id.pre = core::str::from_utf8(pre).ok().map(str::to_owned);
-                    }
+                    id.pre = pre.try_into().ok();
                 }
                 Ok(id)
             }
-            Authentication::Member(m) => match subject::decode(&m) {
+            Authentication::Member(m) => match subject::decode(&m, self.fingerprint) {
                 Some(subject) => Ok(Identified {
                     identity: Identity::Member {
                         user: subject::user_of(&subject),
@@ -956,7 +1109,10 @@ impl Authenticator for Gatekeeper {
                     digest: Some(*m.digest()),
                     set_cookie: None,
                     pre: None,
+                    issuer: self.id,
                 }),
+                // Written for another schema (a redeploy changed the
+                // permission list) or garbled: end it, never reinterpret it.
                 None => {
                     let _ = self.auth.end_session(&m);
                     Ok(Identified::guest(self.clear_cookie()))
@@ -965,6 +1121,20 @@ impl Authenticator for Gatekeeper {
             Authentication::Refused(AuthRefusal::Banned { until }) => {
                 Err(Refusal::new(RefusalKind::Banned { until }).with_cookie(self.clear_cookie()))
             }
+        }
+    }
+}
+
+/// The network prefix of an address, for audit: /24 for IPv4, /48 for IPv6.
+fn source_prefix(ip: core::net::IpAddr) -> String {
+    match ip {
+        core::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            format!("{}.{}.{}.0/24", o[0], o[1], o[2])
+        }
+        core::net::IpAddr::V6(v6) => {
+            let s = v6.segments();
+            format!("{:x}:{:x}:{:x}::/48", s[0], s[1], s[2])
         }
     }
 }

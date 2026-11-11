@@ -24,7 +24,7 @@
 | `login_passkey(&Cleared, &Visit, &RelyingParty, PasskeyForm) -> Login` | passkey sign-in |
 | `logout(Cleared, &Visit, csrf) -> Result<SignedOut, Refusal>` | sign-out |
 | `csrf_token(&Cleared)`, `check_csrf(&Cleared, &Visit, token)` | CSRF for signed-in forms |
-| `create_account`, `set_standing`, `set_roles`, `change_password` | audited account changes |
+| `create_account`, `set_standing`, `set_roles`, `change_password`, `enroll_totp`, `confirm_totp`, `remove_totp`, `new_recovery_codes`, `register_passkey`, `remove_passkey`, `sign_out_everywhere` | audited account, factor, and session changes |
 | `auth()`, `schema()` | the underlying gate and schema |
 | `keys_from_vault(&KeyVault, KeyHandle) -> Result<GateKeys>` | keys from the master secret |
 
@@ -38,7 +38,7 @@
 
 ## Audit
 
-`AuditLog` (trait), `ChainAudit<S>` (an audit-trail chain under keyed BLAKE3; `memory`, `records`, `actions`, `failures`), `AuditEvent`, `AuditAction`, `KeyedBlake3`.
+`AuditLog` (trait), `RingSink` (bounded memory sink), `MEMORY_AUDIT_RECORDS`, `ChainAudit<S>` (an audit-trail chain under keyed BLAKE3; `memory`, `records`, `actions`, `failures`), `AuditEvent`, `AuditAction`, `KeyedBlake3`.
 
 The crate also re-exports the access-gate and auth-gate types a service needs (`Schema`, `Rule`, `Resource`, `Standing`, `GateKeys`, the stores, signals).
 

@@ -3,7 +3,7 @@
 # =============================================================================
 [package]
 name    = "gatekeeper-io"
-version = "0.4.1"
+version = "0.5.0"
 
 # Minimum Supported Rust Version (MSRV)
 rust-version = "1.85"
@@ -59,8 +59,8 @@ web-net = ["dep:web-net"]
 [dependencies]
 # The two gates (first party). Published versions only: never a path
 # dependency in this file.
-auth-gate = "0.3"
-access-gate = "0.3"
+auth-gate = "0.4"
+access-gate = "0.4"
 # Signed, session-bound CSRF tokens and the request origin policy.
 csrf-sec = "0.9.3"
 # Cookie parsing (duplicate-safe) and Set-Cookie building.

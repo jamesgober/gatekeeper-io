@@ -92,7 +92,9 @@ pub use auth_gate::{
 };
 
 pub use crate::{
-    audit::{AuditAction, AuditEvent, AuditLog, ChainAudit, KeyedBlake3},
+    audit::{
+        AuditAction, AuditEvent, AuditLog, ChainAudit, KeyedBlake3, MEMORY_AUDIT_RECORDS, RingSink,
+    },
     gatekeeper::{
         AttributeSource, Authenticator, CodeForm, EveryoneGuest, FormToken, Gatekeeper,
         GatekeeperBuilder, Login, LoginFailed, LoginFailure, LoginForm, PRE_SESSION_COOKIE,

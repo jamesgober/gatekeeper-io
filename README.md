@@ -20,7 +20,7 @@
         <strong>gatekeeper-io</strong> joins the two gates: <strong>authentication</strong> for every request (auth-gate) and <strong>authorization</strong> in the router after the route match (access-gate), with sign-in and sign-out, CSRF on both (csrf-sec), cookies (cookie-net), standing changes, a tamper-evident audit chain (audit-trail), and keys derived from a master secret in key-vault.
     </p>
     <p>
-        A request carries a stage value. <code>Inspected</code> comes from the request pipeline, <code>Identified</code> only from authentication, and <code>Cleared</code> only from authorization. Handlers take <code>Cleared</code>, so skipping a gate does not compile. Every request reads memory only.
+        A request carries a stage value. <code>Inspected</code> comes from the request pipeline, <code>Identified</code> only from authentication, and <code>Cleared</code> only from authorization. Handlers take <code>Cleared</code>, so skipping a gate does not compile. A <code>Cleared</code> says the request passed a rule of this gatekeeper, not which one: keep each handler next to its route's rule. Every request reads memory only.
     </p>
     <br>
     <hr>
@@ -28,7 +28,7 @@
         <strong>MSRV is 1.85+</strong> (Rust 2024 edition). <code>#![forbid(unsafe_code)]</code>.
     </p>
     <blockquote>
-        <strong>Status: <code>0.4.1</code>, pre-release.</strong> Built and tested locally; not yet published. It depends on auth-gate and access-gate, which publish first.
+        <strong>Status: <code>0.5.0</code>, pre-release.</strong> Built and tested locally; not yet published. It depends on auth-gate and access-gate, which publish first.
     </blockquote>
 </div>
 
@@ -39,7 +39,7 @@
 
 ```toml
 [dependencies]
-gatekeeper-io = "0.4"
+gatekeeper-io = "0.5"
 ```
 
 ## Usage

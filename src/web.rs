@@ -54,7 +54,10 @@ fn denial_kind(refusal: &Refusal) -> Denial {
         RefusalKind::GuestOnly => Denial::forbidden("gate.guest_only"),
         RefusalKind::Banned { .. } => Denial::forbidden("gate.banned"),
         RefusalKind::Csrf => Denial::forbidden("gate.csrf"),
+        // web-net has no service-unavailable denial yet (asked for one):
+        // 403 with a code that says what happened.
         RefusalKind::Unavailable => Denial::forbidden("gate.unavailable"),
+        RefusalKind::ForeignStage => Denial::forbidden("gate.foreign_stage"),
         _ => Denial::forbidden("gate.forbidden"),
     }
 }

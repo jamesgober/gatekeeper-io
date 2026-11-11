@@ -13,7 +13,7 @@ struct Site {
     gk: Gatekeeper,
     clock: Arc<ManualClock>,
     signals: Arc<MemorySignals>,
-    audit: Arc<ChainAudit<audit_trail::MemorySink>>,
+    audit: Arc<ChainAudit<RingSink>>,
     read: Rule,
     write: Rule,
     edit: Rule,

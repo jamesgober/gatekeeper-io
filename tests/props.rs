@@ -22,7 +22,7 @@ fn attrs() -> impl Strategy<Value = Attrs> {
     prop::collection::vec((0u8..16, any::<u64>()), 0..16).prop_map(|kv| {
         let mut a = Attrs::new();
         for (k, v) in kv {
-            a.set(access_gate::AttrId::from_index(k), v);
+            a.set(access_gate::AttrId::from_index(k).unwrap(), v);
         }
         a
     })
@@ -37,9 +37,10 @@ proptest! {
     /// What sign-in packs into the session, every request unpacks unchanged.
     #[test]
     fn payload_round_trip(p in perms(), tenant in proptest::option::of(any::<u64>()), a in attrs()) {
-        let bytes = __encode_payload(p, tenant, &a).unwrap();
+        let bytes = __encode_payload(7, p, tenant, &a).unwrap();
         prop_assert!(bytes.len() <= auth_gate::MAX_PAYLOAD);
-        let s = __decode_payload(&bytes).unwrap();
+        prop_assert!(__decode_payload(&bytes, 8).is_none(), "another schema");
+        let s = __decode_payload(&bytes, 7).unwrap();
         prop_assert_eq!(*s.perms(), p);
         prop_assert_eq!(s.tenant(), tenant);
         prop_assert_eq!(*s.attrs(), a);
@@ -48,11 +49,11 @@ proptest! {
     /// A payload cut short or grown never decodes.
     #[test]
     fn payload_damage_fails_closed(p in perms(), a in attrs(), cut in 1usize..8, extra in any::<u8>()) {
-        let bytes = __encode_payload(p, Some(1), &a).unwrap();
-        prop_assert!(__decode_payload(&bytes[..bytes.len().saturating_sub(cut)]).is_none());
+        let bytes = __encode_payload(7, p, Some(1), &a).unwrap();
+        prop_assert!(__decode_payload(&bytes[..bytes.len().saturating_sub(cut)], 7).is_none());
         let mut grown = bytes.clone();
         grown.push(extra);
-        prop_assert!(__decode_payload(&grown).is_none());
+        prop_assert!(__decode_payload(&grown, 7).is_none());
     }
 
     /// No Cookie or Authorization header makes a guest into a member, and

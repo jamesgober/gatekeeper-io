@@ -21,3 +21,14 @@ hashes the client binding on every request. Those are deliberate, and the
 tuning candidates are listed in auth-gate's `docs/PERFORMANCE.md`.
 
 Run with `cargo bench --bench gates`.
+
+## Re-measured 2026-11-11 (0.5.0, same shared machine, busier)
+
+| Benchmark | 0.4 | 0.5 |
+|---|---|---|
+| `gates/both` | 1.05 us | 744 ns (709 to 784) |
+| `gates/authorize` | 79 ns | 37.8 ns (37.3 to 38.3) |
+
+The browser binding hash now runs only when the network prefix moves or at
+the touch interval, and `check` reads the clock only for rules or standings
+that need it.

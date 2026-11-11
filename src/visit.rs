@@ -161,8 +161,11 @@ impl Locator {
     pub(crate) fn locate<'a>(&self, visit: &Visit<'a>) -> Option<&'a [u8]> {
         let bearer = || {
             visit.authorization.and_then(|h| {
-                let rest = h.strip_prefix(b"Bearer ")?;
-                Some(rest.trim_ascii())
+                // The scheme name is case-insensitive (RFC 9110 section 11.1).
+                let (scheme, rest) = h.split_at_checked(7)?;
+                scheme
+                    .eq_ignore_ascii_case(b"bearer ")
+                    .then(|| rest.trim_ascii())
             })
         };
         let cookie = |name: &str| match visit.cookie(name) {
