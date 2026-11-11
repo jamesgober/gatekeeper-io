@@ -64,7 +64,7 @@ access-gate = "0.4"
 # Signed, session-bound CSRF tokens and the request origin policy.
 csrf-sec = "0.9.3"
 # Cookie parsing (duplicate-safe) and Set-Cookie building.
-cookie-net = "0.7.1"
+cookie-net = "0.8"
 # The master secret, page-locked and zeroed on drop.
 key-vault = "1.1"
 # Tamper-evident audit chain (in-memory sink; callers bring file sinks).

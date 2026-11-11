@@ -6,6 +6,7 @@
 //! authorization passed, so the stage guarantee holds there too.
 
 use core::net::{IpAddr, Ipv4Addr};
+use std::vec::Vec;
 
 use access_gate::{DenialKind as AccessDenial, Rule};
 use web_net::{Denial, Request};
@@ -62,9 +63,11 @@ fn denial_kind(refusal: &Refusal) -> Denial {
     }
 }
 
-/// The gates' view of a web-net request.
+/// The gates' view of a web-net request. `cookie_lines` holds every
+/// `Cookie` field line of the request when there is more than one (HTTP/2
+/// crumbs); pass an empty slice otherwise.
 #[must_use]
-pub fn visit<'a>(req: &Request<'a>) -> Visit<'a> {
+pub fn visit<'a>(req: &Request<'a>, cookie_lines: &'a [&'a [u8]]) -> Visit<'a> {
     let peer = req
         .client()
         .addr()
@@ -78,8 +81,8 @@ pub fn visit<'a>(req: &Request<'a>) -> Visit<'a> {
         .fetch_site(req.header("sec-fetch-site"))
         .origin(req.header("origin"))
         .referer(req.header("referer"));
-    if req.raw().head().header_all("cookie").nth(1).is_some() {
-        v = v.duplicate_cookie_fields();
+    if cookie_lines.len() > 1 {
+        v = v.cookie_lines(cookie_lines);
     }
     v
 }
@@ -89,7 +92,14 @@ impl web_net::Gate for Gatekeeper {
     type Rule = Rule;
 
     fn authenticate(&self, req: &Request<'_>) -> Result<Identified, Denial> {
-        Authenticator::authenticate(self, Inspected::new(), &visit(req)).map_err(|r| denial(&r))
+        // Several Cookie lines are rare outside HTTP/2; only then collect them.
+        let mut all = req.raw().head().header_all("cookie");
+        let lines: Vec<&[u8]> = match (all.next(), all.next()) {
+            (Some(a), Some(b)) => [a, b].into_iter().chain(all).collect(),
+            _ => Vec::new(),
+        };
+        Authenticator::authenticate(self, Inspected::new(), &visit(req, &lines))
+            .map_err(|r| denial(&r))
     }
 
     fn authorize(&self, who: &Identified, rule: &Rule, _req: &Request<'_>) -> Result<(), Denial> {

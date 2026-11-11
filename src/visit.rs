@@ -27,7 +27,7 @@ pub struct Visit<'a> {
     pub(crate) fetch_site: Option<&'a [u8]>,
     pub(crate) origin: Option<&'a [u8]>,
     pub(crate) referer: Option<&'a [u8]>,
-    pub(crate) duplicate_cookies: bool,
+    pub(crate) cookie_lines: Option<&'a [&'a [u8]]>,
 }
 
 impl<'a> Visit<'a> {
@@ -43,7 +43,7 @@ impl<'a> Visit<'a> {
             fetch_site: None,
             origin: None,
             referer: None,
-            duplicate_cookies: false,
+            cookie_lines: None,
         }
     }
 
@@ -96,11 +96,15 @@ impl<'a> Visit<'a> {
         self
     }
 
-    /// The request carried more than one `Cookie` field (cookie tossing):
-    /// every cookie read is refused, never resolved by picking one.
+    /// Every `Cookie` field line of the request, for a request that carries
+    /// several. HTTP/2 and HTTP/3 split the header into such crumbs (RFC
+    /// 9113 section 8.2.3); they are read as one header. A cookie name that
+    /// appears twice, in one line or across lines, is still refused, never
+    /// resolved by picking one. Takes the place of
+    /// [`cookie_header`](Self::cookie_header).
     #[must_use]
-    pub const fn duplicate_cookie_fields(mut self) -> Self {
-        self.duplicate_cookies = true;
+    pub const fn cookie_lines(mut self, lines: &'a [&'a [u8]]) -> Self {
+        self.cookie_lines = Some(lines);
         self
     }
 
@@ -111,13 +115,18 @@ impl<'a> Visit<'a> {
     }
 
     pub(crate) fn cookie(&self, name: &str) -> Located<'a> {
-        let Some(header) = self.cookie else {
+        let found = if let Some(lines) = self.cookie_lines {
+            match cookie_net::Cookies::from_lines(lines, &cookie_net::Limits::DEFAULT) {
+                Ok(c) => c.get_unique(name),
+                // Over the length limit: never read a part of it.
+                Err(_) => return Located::Ambiguous,
+            }
+        } else if let Some(header) = self.cookie {
+            cookie_net::get_unique(header, name)
+        } else {
             return Located::Absent;
         };
-        if self.duplicate_cookies {
-            return Located::Ambiguous;
-        }
-        match cookie_net::get_unique(header, name) {
+        match found {
             Ok(Some(v)) => Located::Found(v.as_bytes()),
             Ok(None) => Located::Absent,
             // Planted twice: never pick one.

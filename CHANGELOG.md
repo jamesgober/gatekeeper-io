@@ -35,15 +35,35 @@ access-gate 0.4.
 - The audit key is derived from the master secret under its own label, and
   keys are held in `Zeroizing`.
 - The bearer scheme name is matched case-insensitively.
+- Several `Cookie` field lines (HTTP/2 and HTTP/3 crumbs) are read as one
+  header through `Visit::cookie_lines`; only a cookie name that appears
+  twice is refused. `Visit::duplicate_cookie_fields`, which refused every
+  request with more than one line, is gone, and `web::visit` takes the
+  lines.
 
 ### Changed
 
+- cookie-net 0.8 (was 0.7).
 - `check` reads the clock only when the rule or the subject's standing
   needs it, and the guest pre-session value is held inline.
 - `__encode_payload` and `__decode_payload` (fuzzing hooks) take the
   fingerprint.
 
-Existing sessions end once after this upgrade (payload version 2).
+### Migrating from 0.4
+
+- **Every existing session ends once** after the upgrade: payload version 2
+  carries the schema fingerprint, and older payloads are refused (the
+  request becomes a guest and the cookie is cleared). Users sign in again.
+- **Store adapters** move to auth-gate 0.4 and implement its three new
+  `IdentityStore` methods (`record_unknown_failure`, `lock_until`, and
+  preferably `account_by_identifier`); see auth-gate's changelog.
+- From then on, any change to the permission or attribute list (order
+  included) ends live sessions the same way, by design.
+- Call the gatekeeper's `enroll_totp`, `confirm_totp`, `remove_totp`,
+  `new_recovery_codes`, `register_passkey`, `remove_passkey`, and
+  `sign_out_everywhere` (they take an `Actor`) instead of the same calls on
+  `auth()`, so the changes are audited.
+- `RefusalKind` has a new variant, `ForeignStage`.
 
 See [`docs/release/v0.5.0.md`](./docs/release/v0.5.0.md).
 

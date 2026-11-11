@@ -606,7 +606,7 @@ fn second_factor_through_the_gatekeeper() {
 }
 
 #[test]
-fn duplicate_cookie_fields_are_refused() {
+fn cookie_crumbs_are_read_and_duplicates_refused() {
     let s = site();
     s.gk.create_account("a@x.io", PW, Standing::Active, &[])
         .unwrap();
@@ -621,7 +621,20 @@ fn duplicate_cookie_fields_are_refused() {
             .unwrap()
             .is_guest()
     );
-    let tossed = get(&h).duplicate_cookie_fields();
+    // HTTP/2 crumbs: the session cookie in one line, others in another.
+    let crumbs: [&[u8]; 3] = [b"theme=dark", h.as_bytes(), b"lang=en"];
+    let split = get("").cookie_lines(&crumbs);
+    assert!(
+        !s.gk
+            .authenticate(Inspected::new(), &split)
+            .unwrap()
+            .is_guest(),
+        "crumbs are one header"
+    );
+    // The session cookie planted again in another line: never pick one.
+    let planted = format!("{h}; x=1");
+    let tossed: [&[u8]; 2] = [h.as_bytes(), planted.as_bytes()];
+    let tossed = get("").cookie_lines(&tossed);
     assert!(
         s.gk.authenticate(Inspected::new(), &tossed)
             .unwrap()
