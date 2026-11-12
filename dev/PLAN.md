@@ -26,3 +26,4 @@ gatekeeper-io is the package that joins auth-gate and access-gate: stage types, 
 | D-014 | 2026-11-11 | Payload v2 carries the schema fingerprint; a mismatch ends the session (re-deriving from roles is the 0.6 refresh item) | positional bits remapped live sessions after a schema edit |
 | D-015 | 2026-11-11 | Each gatekeeper has a random id stamped into its stages; foreign members are refused, foreign guests stay guests | hardening |
 | D-016 | 2026-11-11 | Default audit is a bounded ring; factor changes audited through the gatekeeper; audit key under its own label | hardening |
+| D-017 | 2026-11-11 | Role grant edits end live sessions through the fingerprint (access-gate 0.5) | no stale grant survives a role definition change |

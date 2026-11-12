@@ -7,8 +7,9 @@
 | 0.3.0 | done | property tests, fuzz targets, benchmarks, the end-to-end sign-in scenario |
 | 0.4.0 | done | the `web-net` feature on web-net 0.7 (cookie on identity and denial) |
 | 0.5.0 | done | hardening: schema fingerprint in sessions, issuer-bound stages, bounded audit, audited factor changes |
-| 0.6.0 | next | the schema as configuration (same compile as code); a guest output-cache hook (who may be served from cache); role changes that refresh live sessions instead of ending them |
-| 0.7.0 | | a one-call login page and submit (Tier 1 for sign-in); wire the security bridge to the in-process event bus once it exists; per-source scoring hooks for the connection gate |
+| 0.6.0 | done | on auth-gate 0.5 and access-gate 0.5 (role edits end stale sessions) |
+| 0.7.0 | next | the schema as configuration (same compile as code); a guest output-cache hook (who may be served from cache); role changes that refresh live sessions instead of ending them |
+| 0.8.0 | | a one-call login page and submit (Tier 1 for sign-in); wire the security bridge to the in-process event bus once it exists; per-source scoring hooks for the connection gate |
 | 0.9.x | | polish and freeze |
 | 1.0.0 | maintainer's call | after real use end to end and an adversarial review |
 

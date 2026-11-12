@@ -13,6 +13,26 @@
 
 ---
 
+## [0.6.0] - 2026-11-11
+
+### Changed
+
+- On auth-gate 0.5 and access-gate 0.5.
+
+### Migrating from 0.5
+
+- **Every existing session ends once** after the upgrade: the schema
+  fingerprint now covers role grants, so 0.5 payloads no longer match.
+- From now on, editing what a role grants ends live sessions that carried
+  the old grant (at their next request), instead of letting them keep it
+  until they expire.
+- Store adapters follow auth-gate 0.5: `account_by_identifier` is required,
+  and `use_once` takes `now`.
+
+See [`docs/release/v0.6.0.md`](./docs/release/v0.6.0.md).
+
+---
+
 ## [0.5.0] - 2026-11-11
 
 Hardening fixes; on auth-gate 0.4 and

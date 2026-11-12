@@ -28,7 +28,7 @@
         <strong>MSRV is 1.85+</strong> (Rust 2024 edition). <code>#![forbid(unsafe_code)]</code>.
     </p>
     <blockquote>
-        <strong>Status: <code>0.5.0</code>, pre-release.</strong> Built and tested locally; not yet published. It depends on auth-gate and access-gate, which publish first.
+        <strong>Status: <code>0.6.0</code>, pre-release.</strong> Published on crates.io. The API may still change before 1.0.
     </blockquote>
 </div>
 
@@ -39,7 +39,7 @@
 
 ```toml
 [dependencies]
-gatekeeper-io = "0.5"
+gatekeeper-io = "0.6"
 ```
 
 ## Usage
