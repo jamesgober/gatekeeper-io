@@ -5,6 +5,10 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  # Weekly, so a newer dependency that breaks the build shows up between
+  # releases (Cargo.lock is not committed: CI resolves what users get).
+  schedule:
+    - cron: "17 6 * * 1"
 
 env:
   CARGO_TERM_COLOR: always

@@ -3,7 +3,7 @@
 # =============================================================================
 [package]
 name    = "gatekeeper-io"
-version = "0.6.0"
+version = "0.7.0"
 
 # Minimum Supported Rust Version (MSRV)
 rust-version = "1.85"
@@ -25,7 +25,6 @@ keywords = ["authentication", "authorization", "session", "csrf", "security"]
 categories = ["authentication", "web-programming"]
 
 # Links
-homepage      = "https://github.com/jamesgober/gatekeeper-io"
 repository    = "https://github.com/jamesgober/gatekeeper-io"
 documentation = "https://docs.rs/gatekeeper-io"
 
@@ -59,7 +58,7 @@ web-net = ["dep:web-net"]
 [dependencies]
 # The two gates (first party). Published versions only: never a path
 # dependency in this file.
-auth-gate = "0.5"
+auth-gate = "0.5.1"
 access-gate = "0.5"
 # Signed, session-bound CSRF tokens and the request origin policy.
 csrf-sec = "0.9.3"
@@ -74,7 +73,7 @@ crypt-io = { version = "1.5", default-features = false, features = ["std", "mac-
 # OS CSPRNG for pre-session cookies (first party, zero dependencies).
 mod-rand = { version = "1", default-features = false, features = ["tier3"] }
 # The web framework's gate traits (optional).
-web-net = { version = "0.7", optional = true }
+web-net = { version = "0.11", optional = true }
 
 
 # DEV DEPENDENCIES

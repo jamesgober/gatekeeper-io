@@ -55,9 +55,8 @@ fn denial_kind(refusal: &Refusal) -> Denial {
         RefusalKind::GuestOnly => Denial::forbidden("gate.guest_only"),
         RefusalKind::Banned { .. } => Denial::forbidden("gate.banned"),
         RefusalKind::Csrf => Denial::forbidden("gate.csrf"),
-        // web-net has no service-unavailable denial yet (asked for one):
-        // 403 with a code that says what happened.
-        RefusalKind::Unavailable => Denial::forbidden("gate.unavailable"),
+        // The stores could not answer: a retryable 503, never "forbidden".
+        RefusalKind::Unavailable => Denial::unavailable("gate.unavailable"),
         RefusalKind::ForeignStage => Denial::forbidden("gate.foreign_stage"),
         _ => Denial::forbidden("gate.forbidden"),
     }
@@ -125,6 +124,9 @@ mod tests {
         let sign_in = denial(&Refusal::new(RefusalKind::NeedsSignIn));
         assert_eq!(sign_in.kind(), DenialKind::SignIn);
         assert_eq!(sign_in.cookie(), None);
+        let down = denial(&Refusal::new(RefusalKind::Unavailable));
+        assert_eq!(down.kind(), DenialKind::Unavailable);
+        assert_eq!(down.status(), 503, "retryable, never forbidden");
         let step_up = denial(&Refusal::new(RefusalKind::Forbidden(
             AccessDenial::StaleFactor,
         )));
