@@ -27,3 +27,4 @@ gatekeeper-io is the package that joins auth-gate and access-gate: stage types, 
 | D-015 | 2026-11-11 | Each gatekeeper has a random id stamped into its stages; foreign members are refused, foreign guests stay guests | hardening |
 | D-016 | 2026-11-11 | Default audit is a bounded ring; factor changes audited through the gatekeeper; audit key under its own label | hardening |
 | D-017 | 2026-11-11 | Role grant edits end live sessions through the fingerprint (access-gate 0.5) | no stale grant survives a role definition change |
+| D-018 | 2026-11-25 | Follow web-net 0.11; a store outage maps to `Denial::unavailable` (503) | an outage is retryable and must never read as "forbidden" |
