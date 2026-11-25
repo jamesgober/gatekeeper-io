@@ -58,7 +58,7 @@ web-net = ["dep:web-net"]
 [dependencies]
 # The two gates (first party). Published versions only: never a path
 # dependency in this file.
-auth-gate = "0.5"
+auth-gate = "0.5.1"
 access-gate = "0.5"
 # Signed, session-bound CSRF tokens and the request origin policy.
 csrf-sec = "0.9.3"

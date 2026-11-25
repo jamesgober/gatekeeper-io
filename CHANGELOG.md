@@ -18,6 +18,8 @@
 ### Changed
 
 - The `web-net` feature is on web-net 0.11 (serve-net 0.9, HTTP/2).
+- Requires auth-gate 0.5.1, which builds against crypt-io 1.6 and later
+  (auth-gate 0.5.0 could not build a gate with it).
 - When the account or session stores cannot answer, `web::denial` now gives
   web-net's retryable 503 (`Denial::unavailable`) instead of a 403.
 - README and API reference reorganised; the API reference has a contents list.
